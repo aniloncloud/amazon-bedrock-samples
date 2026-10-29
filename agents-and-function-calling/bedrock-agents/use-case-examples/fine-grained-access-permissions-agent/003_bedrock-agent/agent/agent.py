@@ -45,6 +45,11 @@ def get_stored_claim(claim_id):
     return dict(claim) if claim else None
 
 
+def to_response(claim):
+    """Return the claim as exposed through the API, without internal authorization attributes."""
+    return {k: v for k, v in claim.items() if k != "owner"}
+
+
 def parse_claim_id(event):
     """Return the requested claimId as an int, or None if missing or malformed."""
     try:
@@ -76,11 +81,11 @@ def list_claims(event, user_info):
         logger.info("Filtering claims for adjuster role")
         filtered_claims = [claim for claim in dummy_claims if claim['region'] == user_region]
         logger.info(f"Filtered claims count: {len(filtered_claims)}")
-        return filtered_claims
+        return [to_response(claim) for claim in filtered_claims]
     else:
         # Non-adjusters (assumed to be admins) can access all claims
         logger.info("Returning all claims for admin role")
-        return dummy_claims
+        return [to_response(claim) for claim in dummy_claims]
 
 def get_claim(event, user_info):
     # This function retrieves a claim by ID and applies role-based access control.
@@ -103,14 +108,14 @@ def get_claim(event, user_info):
         # Adjusters can only access claims in their assigned region
         if dummy_claim['region'] == user_region:
             logger.info("Access granted: Claim region matches adjuster region")
-            return dummy_claim
+            return to_response(dummy_claim)
         else:
             logger.warning("Access denied: Claim region does not match adjuster region")
             return None
     else:
         # Non-adjusters (assumed to be admins) can access all claims
         logger.info("Access granted: Admin role")
-        return dummy_claim
+        return to_response(dummy_claim)
 
 
 def update_claim(event, user_info):
@@ -134,8 +139,7 @@ def update_claim(event, user_info):
         "claimAmount": existing_claim['claimAmount'] + 500.0,  # Example update
         "claimDescription": "Further updated dummy claim",
         "claimStatus": "approved",
-        "region": existing_claim['region'],
-        "owner": existing_claim['owner']
+        "region": existing_claim['region']
     }
 
     # TODO: Implement logic to save the updated claim to the database.
